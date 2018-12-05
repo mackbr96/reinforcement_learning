@@ -9,7 +9,7 @@ import random
 
 ##################################################################################################
 class Qlearn:
-	def __init__(self,buckets=10, alpha=0.1, epsilon=.1, gamma=1.0, thetaScale=100):
+	def __init__(self,buckets=10, alpha=0.001, epsilon=0.001, gamma=1.0, thetaScale=10):
 		self.buckets = buckets
 		self.thetaScale = thetaScale
 		self.alpha_min = alpha # learning rate
@@ -17,7 +17,7 @@ class Qlearn:
 		self.alpha = alpha
 		self.epsilon = epsilon
 		self.gamma = gamma # discount factor
-		self.ada_divisor = 25
+		self.ada_divisor = 5
 		self.env = gym.make('CartPole-v0')
 
 		n_obs = 2
@@ -27,21 +27,17 @@ class Qlearn:
 		self.thetaPrime_buckets = pd.cut([0, self.thetaScale], self.buckets, retbins=True)[1]
 
 		self.qTable = np.zeros([buckets ** n_obs, n_actions])
-		blah = []
-		for x in self.qTable:
-			tri = []
-			for y in x:
-				y = random.randint(0,1)
-				tri.append(y)
-			blah.append(tri)
-		self.qTable = np.array(blah)
-			
-
+		# blah = []
+		# for x in self.qTable:
+		# 	tri = []
+		# 	for y in x:
+		# 		y = random.randint(0,1)
+		# 		tri.append(y)
+		# 	blah.append(tri)
+		# self.qTable = np.array(blah)
 	
 
 	def update_q(self, state, action, reward, old_state):
-		if state == 100:
-			state -= 1
 		self.qTable[old_state, action] = (1-self.alpha) * self.qTable[old_state, action] + self.alpha * (reward + self.gamma * np.max(self.qTable[state]))
 		
 
@@ -49,9 +45,10 @@ class Qlearn:
 		if (np.random.random() <= self.epsilon):
 			return self.env.action_space.sample()
 		else:
-			return np.argmax(self.qTable[state, :])
+			return np.argmax(self.qTable[state])
               
-	def observationToState(self, obs, numBuckets):
+	def observationToState(self, obs):
+		numBuckets = self.buckets
 		actions = len(obs)
 		return sum([numBuckets ** (actions - i - 1 ) * obs[i] for i in range(len(obs))])
 
@@ -74,7 +71,6 @@ def random_policy(obs):
 	return 0 if np.random.uniform() < 0.5 else 1
 
 def better_policy(obs, learn):
-	
 	return learn.choose_action(obs[2])
 
 
@@ -88,6 +84,7 @@ def naive_main( policy ):
 	debug = True
 	env = gym.make('CartPole-v0')
 	env.render()
+	avg = 0
 	# episodic reinforcement learning
 	totals = []
 	for episode in range(100):
@@ -96,7 +93,7 @@ def naive_main( policy ):
 				np.digitize(current_state[2], RL.theta_buckets  ),
 				np.digitize(sigmoid(current_state[3]) * RL.thetaScale, RL.thetaPrime_buckets)
 			]
-		current_state = RL.observationToState(buckets, 10)
+		current_state = RL.observationToState(buckets)
 		episode_rewards = 0
 		RL.updateValues(episode)
 		for step in range(10000):
@@ -105,10 +102,10 @@ def naive_main( policy ):
 			newObs, reward, done, info = env.step(action)
 			
 			buckets = [
-				np.digitize(newObs[2], RL.theta_buckets  ),
-				np.digitize(sigmoid(newObs[3]) * RL.thetaScale, RL.thetaPrime_buckets)
+				np.digitize(newObs[2], RL.theta_buckets  ) - 1,
+				np.digitize(sigmoid(newObs[3]) * RL.thetaScale, RL.thetaPrime_buckets) -1
 			]
-			newObs = RL.observationToState(buckets, 10)
+			newObs = RL.observationToState(buckets)
 			RL.update_q(newObs, action, reward, current_state)
 			
 			#env.render()
@@ -122,8 +119,12 @@ def naive_main( policy ):
 				#time.sleep(1)
 				break
 		totals.append(episode_rewards)
-		print(np.mean(totals), np.std(totals), np.min(totals), np.max(totals))
+		avg = np.mean(totals)
+		#print(np.mean(totals), np.std(totals), np.min(totals), np.max(totals))
 	print("Max is ",max(totals))
+	print("Last 10 avg ", sum([totals[x] for x in range(-1, -10, -1)] )/ 10)
+	print("Total Avg is ",np.mean(totals) )
+	print(RL.qTable)
 
 ##################################################################################################
 
